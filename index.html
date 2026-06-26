@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>한/영타 변환기</title>
+<style>
+  :root {
+    --bg: #14121a;
+    --panel: #1d1a26;
+    --line: #34304a;
+    --ink: #e8e4f0;
+    --dim: #8d87a3;
+    --accent: #c9a6ff;
+    --quote: #7fd4c1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    min-height: 100vh;
+    padding: 20px 16px 40px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  h1 .star { color: var(--accent); }
+  .sub {
+    font-size: 0.8rem;
+    color: var(--dim);
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+  .sub b { color: var(--quote); font-weight: 600; }
+  label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+  }
+  textarea {
+    width: 100%;
+    min-height: 160px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--ink);
+    font-size: 0.95rem;
+    line-height: 1.65;
+    padding: 12px 14px;
+    resize: vertical;
+    font-family: inherit;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+
+  /* 방향 선택 세그먼트 */
+  .seg {
+    display: flex;
+    gap: 6px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 5px;
+    margin-bottom: 10px;
+  }
+  .seg button {
+    flex: 1;
+    padding: 9px 0;
+    border-radius: 7px;
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .seg button.on { background: var(--accent); color: #1a1424; }
+
+  .row {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 20px;
+  }
+  button.act {
+    flex: 1;
+    padding: 13px 0;
+    border-radius: 10px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.05s, opacity 0.15s;
+  }
+  button.act:active { transform: scale(0.98); }
+  .convert { background: var(--accent); color: #1a1424; }
+  .secondary {
+    flex: 0 0 auto;
+    padding: 13px 18px;
+    background: var(--panel);
+    color: var(--dim);
+    border: 1px solid var(--line);
+  }
+  .out-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .out-head label { margin-bottom: 0; }
+  .copy {
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    background: #2a2638;
+    color: var(--accent);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .copy.done { background: var(--accent); color: #1a1424; border-color: transparent; }
+  #output {
+    min-height: 160px;
+  }
+  .auto-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--ink);
+  }
+  .auto-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .hint {
+    font-size: 0.72rem;
+    color: var(--dim);
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <h1><span class="star">＊</span>한/영타 변환기</h1>
+  <p class="sub">한글을 두벌식 자판 위치 그대로 영문으로 (<b>안녕 → dkssud</b>), 또는 그 반대로 (<b>dkssud → 안녕</b>) 바꿔줍니다. 번역이 아니라 키보드 위치 변환이에요.</p>
+
+  <label>변환 방향</label>
+  <div class="seg" id="seg">
+    <button data-dir="ko2en" class="on" onclick="setDir('ko2en')">한글 → 영문</button>
+    <button data-dir="en2ko" onclick="setDir('en2ko')">영문 → 한글</button>
+  </div>
+
+  <label class="auto-row">
+    <input type="checkbox" id="autoMode" checked>
+    자동 감지 (한글이면 영문으로, 영문이면 한글로 알아서 변환)
+  </label>
+
+  <label>원본 붙여넣기</label>
+  <textarea id="input" placeholder="여기에 붙여넣으세요…"></textarea>
+
+  <div class="row">
+    <button class="act convert" onclick="convert()">변환하기</button>
+    <button class="act secondary" onclick="clearAll()">지우기</button>
+  </div>
+
+  <div class="out-wrap">
+    <div class="out-head">
+      <label>결과</label>
+      <button class="copy" id="copyBtn" onclick="copyOut()">복사</button>
+    </div>
+    <textarea id="output" readonly placeholder="변환 결과가 여기에 표시됩니다"></textarea>
+  </div>
+
+  <p class="hint">팁: 자동 감지가 켜져 있으면 방향 버튼은 무시하고 입력 내용을 보고 알아서 변환합니다. 줄바꿈·띄어쓰기·숫자·기호는 그대로 유지돼요.</p>
+
+<script>
+/* ===== 자모 테이블 (두벌식) ===== */
+const CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+const JONG = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+/* 자모 -> 영문 키 */
+const J2E = {
+  'ㄱ':'r','ㄲ':'R','ㄴ':'s','ㄷ':'e','ㄸ':'E','ㄹ':'f','ㅁ':'a','ㅂ':'q','ㅃ':'Q','ㅅ':'t','ㅆ':'T','ㅇ':'d','ㅈ':'w','ㅉ':'W','ㅊ':'c','ㅋ':'z','ㅌ':'x','ㅍ':'v','ㅎ':'g',
+  'ㅏ':'k','ㅐ':'o','ㅑ':'i','ㅒ':'O','ㅓ':'j','ㅔ':'p','ㅕ':'u','ㅖ':'P','ㅗ':'h','ㅛ':'y','ㅜ':'n','ㅠ':'b','ㅡ':'m','ㅣ':'l',
+  'ㅘ':'hk','ㅙ':'ho','ㅚ':'hl','ㅝ':'nj','ㅞ':'np','ㅟ':'nl','ㅢ':'ml',
+  'ㄳ':'rt','ㄵ':'sw','ㄶ':'sg','ㄺ':'fr','ㄻ':'fa','ㄼ':'fq','ㄽ':'ft','ㄾ':'fx','ㄿ':'fv','ㅀ':'fg','ㅄ':'qt'
+};
+
+/* 영문 키 -> 자모 */
+const E2J = {
+  r:'ㄱ',R:'ㄲ',s:'ㄴ',e:'ㄷ',E:'ㄸ',f:'ㄹ',a:'ㅁ',q:'ㅂ',Q:'ㅃ',t:'ㅅ',T:'ㅆ',d:'ㅇ',w:'ㅈ',W:'ㅉ',c:'ㅊ',z:'ㅋ',x:'ㅌ',v:'ㅍ',g:'ㅎ',
+  k:'ㅏ',o:'ㅐ',i:'ㅑ',O:'ㅒ',j:'ㅓ',p:'ㅔ',u:'ㅕ',P:'ㅖ',h:'ㅗ',y:'ㅛ',n:'ㅜ',b:'ㅠ',m:'ㅡ',l:'ㅣ'
+};
+
+const choIdx = c => CHO.indexOf(c);
+const jungIdx = c => JUNG.indexOf(c);
+const jongIdx = c => JONG.indexOf(c);
+
+const JUNG_COMBINE = {'ㅗㅏ':'ㅘ','ㅗㅐ':'ㅙ','ㅗㅣ':'ㅚ','ㅜㅓ':'ㅝ','ㅜㅔ':'ㅞ','ㅜㅣ':'ㅟ','ㅡㅣ':'ㅢ'};
+const JONG_COMBINE = {'ㄱㅅ':'ㄳ','ㄴㅈ':'ㄵ','ㄴㅎ':'ㄶ','ㄹㄱ':'ㄺ','ㄹㅁ':'ㄻ','ㄹㅂ':'ㄼ','ㄹㅅ':'ㄽ','ㄹㅌ':'ㄾ','ㄹㅍ':'ㄿ','ㄹㅎ':'ㅀ','ㅂㅅ':'ㅄ'};
+const JONG_SPLIT = {'ㄳ':['ㄱ','ㅅ'],'ㄵ':['ㄴ','ㅈ'],'ㄶ':['ㄴ','ㅎ'],'ㄺ':['ㄹ','ㄱ'],'ㄻ':['ㄹ','ㅁ'],'ㄼ':['ㄹ','ㅂ'],'ㄽ':['ㄹ','ㅅ'],'ㄾ':['ㄹ','ㅌ'],'ㄿ':['ㄹ','ㅍ'],'ㅀ':['ㄹ','ㅎ'],'ㅄ':['ㅂ','ㅅ']};
+
+/* ===== 한글 -> 영문 ===== */
+function ko2en(str){
+  let out='';
+  for(const ch of str){
+    const code=ch.charCodeAt(0);
+    if(code>=0xAC00 && code<=0xD7A3){
+      const s=code-0xAC00;
+      const cho=Math.floor(s/(21*28));
+      const jung=Math.floor((s%(21*28))/28);
+      const jong=s%28;
+      out += J2E[CHO[cho]] + J2E[JUNG[jung]] + (jong? J2E[JONG[jong]]:'');
+    } else if(J2E[ch]){
+      out += J2E[ch];
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+/* ===== 영문 -> 한글 (조합 자동기) ===== */
+function en2ko(str){
+  let out='';
+  let bCho=null, bJung=null, bJong=null;
+
+  function flush(){
+    if(bCho!==null && bJung!==null){
+      const ci=choIdx(bCho), ji=jungIdx(bJung), ki=bJong?jongIdx(bJong):0;
+      out += String.fromCharCode(0xAC00 + (ci*21+ji)*28 + ki);
+    } else if(bCho!==null){ out += bCho; }
+    else if(bJung!==null){ out += bJung; }
+    else if(bJong!==null){ out += bJong; }
+    bCho=bJung=bJong=null;
+  }
+
+  for(const ch of str){
+    const j = E2J[ch];
+    if(!j){ flush(); out+=ch; continue; }
+    const isVowel = jungIdx(j)>=0;
+
+    if(isVowel){
+      if(bCho!==null && bJung===null && bJong===null){
+        bJung=j;
+      } else if(bJung!==null && bJong===null && JUNG_COMBINE[bJung+j]){
+        bJung=JUNG_COMBINE[bJung+j];
+      } else if(bJong!==null){
+        if(JONG_SPLIT[bJong]){
+          const [stay,move]=JONG_SPLIT[bJong];
+          bJong=stay; flush(); bCho=move; bJung=j;
+        } else {
+          const moved=bJong; bJong=null; flush(); bCho=moved; bJung=j;
+        }
+      } else {
+        flush(); bJung=j;
+      }
+    } else {
+      if(bCho===null && bJung===null && bJong===null){
+        bCho=j;
+      } else if(bCho!==null && bJung===null){
+        flush(); bCho=j;
+      } else if(bJung!==null && bJong===null){
+        if(jongIdx(j)>=0){ bJong=j; }
+        else { flush(); bCho=j; }
+      } else if(bJong!==null){
+        if(JONG_COMBINE[bJong+j]){ bJong=JONG_COMBINE[bJong+j]; }
+        else { flush(); bCho=j; }
+      } else {
+        flush(); bCho=j;
+      }
+    }
+  }
+  flush();
+  return out;
+}
+
+/* ===== UI ===== */
+let dir = 'ko2en';
+function setDir(d){
+  dir = d;
+  document.querySelectorAll('#seg button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.dir===d);
+  });
+}
+
+function detectDir(text){
+  // 한글 음절/자모가 하나라도 있으면 한->영
+  return /[\uAC00-\uD7A3\u3131-\u3163]/.test(text) ? 'ko2en' : 'en2ko';
+}
+
+function convert(){
+  const input = document.getElementById('input').value;
+  const useDir = document.getElementById('autoMode').checked ? detectDir(input) : dir;
+  const result = useDir==='ko2en' ? ko2en(input) : en2ko(input);
+  document.getElementById('output').value = result;
+}
+
+function copyOut(){
+  const out = document.getElementById('output');
+  if(!out.value) return;
+  navigator.clipboard.writeText(out.value).then(()=>{
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '복사됨!';
+    btn.classList.add('done');
+    setTimeout(()=>{ btn.textContent='복사'; btn.classList.remove('done'); }, 1500);
+  });
+}
+
+function clearAll(){
+  document.getElementById('input').value='';
+  document.getElementById('output').value='';
+}
+</script>
+</body>
+</html>
